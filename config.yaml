@@ -1,0 +1,65 @@
+seed: 42
+
+training:
+  batch_size: 64
+  seq_length: 50
+  start_token: 2       # ID del token <SOS> nel SQLiTokenizer
+  vocab_size: 5000     # Deve combaciare col tokenizer
+  num_conditions: 4    # 0=MySQL, 1=PostgreSQL, 2=MSSQL, 3=Oracle
+  print_every: 10      # Frequenza di stampa delle metriche (in epoche/step)
+
+generator:
+  emb_dim: 32
+  hidden_dim: 32
+  pretrain_epochs: 120    # Epoche per il Pre-training MLE
+  learning_rate: 0.01
+  gradient_clip: 5.0
+
+discriminator:
+  emb_dim: 64
+  filter_sizes: [2, 3, 4, 5, 6, 7]          # N-grams (bi-grams, tri-grams, ecc.)
+  num_filters: [100, 100, 100, 100, 100, 100]
+  dropout_prob: 0.7  # Valore originale del paper SeqGAN (alta regolarizzazione)
+  learning_rate: 0.0001
+  pretrain_steps: 50      # Cicli di pre-training del discriminatore
+  inner_epochs: 3         # Epoche interne per ogni ciclo
+
+adversarial:
+  total_batches: 200
+  rollout_num: 16
+  rollout_update_rate: 0.8
+  generator_steps: 1      # Step di aggiornamento del generatore per epoca avversaria
+  discriminator_steps: 5  # Step di aggiornamento del discriminatore per epoca avversaria
+  generated_samples: 10000  # Campioni generati per ogni ciclo del discriminatore
+
+paths:
+  # Dati di training
+  positive_file: data/processed/real_attack_data.txt
+  negative_file: data/processed/generator_sample.txt
+  eval_file: data/processed/eval_file.txt
+  # Vocabolario
+  vocab_file: data/vocab.json
+  # Modello salvato
+  model_output: models/generator_final.pth
+  # Output generazione
+  synthetic_output: data/processed/synthetic_payloads.txt
+  # Dati grezzi (raw)
+  raw_attacks: data/raw/Generic-SQLi.txt
+  raw_kaggle: data/raw/Modified_SQL_Dataset.csv
+  # Dataset generati (clean_dataset.py)
+  generated_dataset: data/generated/dataset_toy.csv
+  generated_attacks: data/generated/dataset_toy_attack.csv
+  generated_normal: data/generated/dataset_toy_normal.csv
+  # Dati pre-processati (preprocess_data.py)
+  processed_attacks: data/processed/real_attack_data.txt
+  processed_normal: data/processed/normal_data.txt
+
+dbms_map:
+  0: MySQL
+  1: PostgreSQL
+  2: MSSQL
+  3: Oracle
+
+generation:
+  num_payloads: 20   # Numero di payload da generare per test
+  default_dbms: 0    # DBMS di default: 0=MySQL

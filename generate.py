@@ -5,24 +5,19 @@ import sys
 # Assicuriamoci che Python trovi i moduli
 sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 
+from config import cfg
 from utils.tokenizer import SQLiTokenizer
 from models.generator import Generator
 
-# --- CONFIGURAZIONE ---
-# Questi parametri DEVONO essere identici a quelli usati in train.py
-SEQ_LENGTH = 50
-START_TOKEN = 2
-NUM_CONDITIONS = 4
-GEN_EMB_DIM = 32
-GEN_HIDDEN_DIM = 32
+# --- CONFIGURAZIONE (caricata da config.yaml) ---
+SEQ_LENGTH = cfg['training']['seq_length']
+START_TOKEN = cfg['training']['start_token']
+NUM_CONDITIONS = cfg['training']['num_conditions']
+GEN_EMB_DIM = cfg['generator']['emb_dim']
+GEN_HIDDEN_DIM = cfg['generator']['hidden_dim']
 
 # Mappa delle Condizioni (DBMS)
-DBMS_MAP = {
-    0: "MySQL",
-    1: "PostgreSQL",
-    2: "MSSQL",
-    3: "Oracle"
-}
+DBMS_MAP = {int(k): v for k, v in cfg['dbms_map'].items()}
 
 def load_generator(vocab_size, model_path, device):
     """Inizializza il modello e carica i pesi salvati."""
@@ -73,9 +68,9 @@ def main():
     print(f"Utilizzo Device: {device}")
     
     # Percorsi dei file
-    vocab_path = "data/vocab.json"
-    model_path = "models/generator_final.pth"
-    output_path = "data/processed/synthetic_payloads.txt"
+    vocab_path = cfg['paths']['vocab_file']
+    model_path = cfg['paths']['model_output']
+    output_path = cfg['paths']['synthetic_output']
     
     # 1. Caricamento del Tokenizer
     if not os.path.exists(vocab_path):
@@ -89,8 +84,8 @@ def main():
     generator = load_generator(vocab_size, model_path, device)
     
     # 3. Parametri di generazione utente
-    NUM_PAYLOADS = 20 # Quanti payload vuoi generare per test
-    SCELTA_DBMS = 0   # 0=MySQL, 1=PostgreSQL, 2=MSSQL, 3=Oracle
+    NUM_PAYLOADS = cfg['generation']['num_payloads']
+    SCELTA_DBMS = cfg['generation']['default_dbms']
     
     # 4. Generazione
     payloads = generate_payloads(NUM_PAYLOADS, SCELTA_DBMS, generator, tokenizer, device)
