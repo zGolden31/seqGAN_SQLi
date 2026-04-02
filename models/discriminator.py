@@ -29,33 +29,28 @@ class Highway(nn.Module):
 
 class Discriminator(nn.Module):
     """
-    Una CNN per la classificazione del testo (ispirata alla Kim CNN), 
-    adattata per funzionare come Discriminatore Condizionato in una GAN.
+    Una CNN per la classificazione del testo (ispirata alla Kim CNN),
+    utilizzata come Discriminatore in una SeqGAN classica.
     """
-    def __init__(self, num_classes, vocab_size, emb_dim, filter_sizes, num_filters, 
-                 num_conditions, dropout_prob=0.7):
+    def __init__(self, num_classes, vocab_size, emb_dim, filter_sizes, num_filters,
+                 dropout_prob=0.7):
         """
         num_classes: 2 (Reale vs Falso)
         vocab_size: Dimensione del vocabolario (max_vocab_size)
         emb_dim: Dimensione del vettore di embedding
         filter_sizes: Lista di dimensioni dei kernel (es. [2, 3, 4, 5] per n-grams)
         num_filters: Lista col numero di filtri per ogni kernel (es. [100, 100, 100, 100])
-        num_conditions: Numero di DBMS (es. 4)
         """
         super(Discriminator, self).__init__()
         
         # Embedding Layer per i token
         self.word_embedding = nn.Embedding(vocab_size, emb_dim)
-        
-        # Embedding Layer per la Condizione (CGAN)
-        self.cond_embedding = nn.Embedding(num_conditions, emb_dim)
 
         # Creazione dei livelli Convoluzionali 1D
-        # L'input channel è emb_dim * 2 perché concateniamo token + condizione
         self.convs = nn.ModuleList([
-            nn.Conv1d(in_channels=emb_dim * 2, 
-                      out_channels=nf, 
-                      kernel_size=fs) 
+            nn.Conv1d(in_channels=emb_dim,
+                      out_channels=nf,
+                      kernel_size=fs)
             for fs, nf in zip(filter_sizes, num_filters)
         ])
 
@@ -67,27 +62,17 @@ class Discriminator(nn.Module):
         self.dropout = nn.Dropout(p=dropout_prob)
         self.fc = nn.Linear(num_filters_total, num_classes)
 
-    def forward(self, x, condition):
+    def forward(self, x):
         """
         x: tensore di interi di shape [batch_size, sequence_length]
-        condition: tensore di interi di shape [batch_size]
         """
         
         # 1. Embedding [batch_size, sequence_length, emb_dim]
         word_emb = self.word_embedding(x)
         
-        # 2. Embedding della Condizione
-        # Prepariamo la condizione espandendola per tutta la lunghezza della sequenza
-        cond_emb = self.cond_embedding(condition) # [batch_size, emb_dim]
-        cond_emb = cond_emb.unsqueeze(1).expand(-1, x.size(1), -1) # [batch_size, seq_len, emb_dim]
-        
-        # 3. Concatenazione (Input della CGAN)
-        # Uniamo la parola e la condizione: [batch_size, seq_len, emb_dim * 2]
-        emb = torch.cat([word_emb, cond_emb], dim=-1)
-        
         # In PyTorch, nn.Conv1d si aspetta i dati nel formato: [batch_size, channels, sequence_length]
         # Quindi scambiamo la dimensione dei canali (gli embedding) con quella della sequenza
-        emb = emb.permute(0, 2, 1) # [batch_size, emb_dim * 2, seq_len]
+        emb = word_emb.permute(0, 2, 1) # [batch_size, emb_dim, seq_len]
 
         # 4. Convoluzione e Max Pooling
         pooled_outputs = []

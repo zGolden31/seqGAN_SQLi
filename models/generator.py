@@ -4,13 +4,12 @@ import torch.nn.functional as F
 from torch.distributions import Categorical
 
 class Generator(nn.Module):
-    def __init__(self, num_emb, emb_dim, hidden_dim, sequence_length, num_conditions, start_token):
+    def __init__(self, num_emb, emb_dim, hidden_dim, sequence_length, start_token):
         """
         num_emb: Dimensione del vocabolario (max_vocab_size)
         emb_dim: Dimensione del vettore di embedding
         hidden_dim: Dimensione della memoria interna della LSTM
         sequence_length: Lunghezza fissa (es. 50)
-        num_conditions: Numero di DBMS diversi (es. 4 per MySQL, Oracle, ecc.)
         start_token: L'ID del token <SOS> (es. 2)
         """
         super(Generator, self).__init__()
@@ -21,18 +20,14 @@ class Generator(nn.Module):
 
         # Equivalente a self.g_embeddings
         self.word_embedding = nn.Embedding(num_emb, emb_dim)
-        
-        # NUOVO PER CGAN: Embedding per la condizione (es. tipo di DBMS)
-        self.cond_embedding = nn.Embedding(num_conditions, emb_dim)
 
         # Equivalente a create_recurrent_unit()
-        # L'input è il doppio perché concateniamo il token e la condizione
-        self.lstm_cell = nn.LSTMCell(emb_dim * 2, hidden_dim)
+        self.lstm_cell = nn.LSTMCell(emb_dim, hidden_dim)
 
         # Equivalente a create_output_unit()
         self.linear = nn.Linear(hidden_dim, num_emb)
 
-    def forward(self, x, condition):
+    def forward(self, x):
         """
         FASE DI PRE-TRAINING (Supervised Learning - MLE)
         Equivalente a _pretrain_recurrence e self.g_predictions.
@@ -51,45 +46,37 @@ class Generator(nn.Module):
 
         # Calcoliamo gli embedding
         word_emb = self.word_embedding(gen_input) # [batch, seq_len, emb_dim]
-        cond_emb = self.cond_embedding(condition).unsqueeze(1).expand(-1, self.sequence_length, -1)
-
-        # Concateniamo per formare l'input della rete
-        lstm_input = torch.cat([word_emb, cond_emb], dim=-1)
 
         logits_list = []
 
         # Il while_loop di TF diventa un semplice for in PyTorch
         for i in range(self.sequence_length):
-            h_t, c_t = self.lstm_cell(lstm_input[:, i, :], (h_t, c_t))
+            h_t, c_t = self.lstm_cell(word_emb[:, i, :], (h_t, c_t))
             logits = self.linear(h_t)
             logits_list.append(logits)
 
         # Impiliamo le previsioni: [batch_size, seq_length, vocab_size]
         return torch.stack(logits_list, dim=1)
 
-    def sample(self, batch_size, condition):
+    def sample(self, batch_size, device):
         """
         FASE ADVERSARIAL (Unsupervised Training / Generazione)
         Equivalente a _g_recurrence e self.gen_x.
         La rete genera un token alla volta, e il token generato diventa l'input per lo step successivo.
         """
-        device = condition.device
-        
         h_t = torch.zeros(batch_size, self.hidden_dim).to(device)
         c_t = torch.zeros(batch_size, self.hidden_dim).to(device)
 
         # Si parte sempre dal token <SOS>
         x_t = torch.full((batch_size,), self.start_token, dtype=torch.long).to(device)
-        cond_emb = self.cond_embedding(condition) # La condizione non cambia durante la generazione
 
         samples = []
         log_probs = []
 
         for i in range(self.sequence_length):
             word_emb = self.word_embedding(x_t)
-            lstm_input = torch.cat([word_emb, cond_emb], dim=-1)
 
-            h_t, c_t = self.lstm_cell(lstm_input, (h_t, c_t))
+            h_t, c_t = self.lstm_cell(word_emb, (h_t, c_t))
             logits = self.linear(h_t)
 
             # Equivalente a tf.multinomial(log_prob, 1)

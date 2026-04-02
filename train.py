@@ -18,7 +18,6 @@ BATCH_SIZE = cfg['training']['batch_size']
 SEQ_LENGTH = cfg['training']['seq_length']
 START_TOKEN = cfg['training']['start_token']
 VOCAB_SIZE = cfg['training']['vocab_size']
-NUM_CONDITIONS = cfg['training']['num_conditions']
 
 # Generator Params
 GEN_EMB_DIM = cfg['generator']['emb_dim']
@@ -42,7 +41,7 @@ EVAL_FILE = cfg['paths']['eval_file']
 # Device
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-def generate_samples(model, batch_size, generated_num, output_file, num_conditions):
+def generate_samples(model, batch_size, generated_num, output_file):
     """
     Fa generare al modello 'generated_num' payload e li salva su file testuale.
     """
@@ -51,10 +50,7 @@ def generate_samples(model, batch_size, generated_num, output_file, num_conditio
     
     with torch.no_grad():
         for _ in range(int(generated_num / batch_size)):
-            # Per generare, scegliamo una condizione casuale o fissa.
-            # Qui simuliamo la generazione distribuita tra i vari DBMS
-            cond = torch.randint(0, num_conditions, (batch_size,)).to(device)
-            samples, _ = model.sample(batch_size, cond)
+            samples, _ = model.sample(batch_size, device)
             generated_samples.extend(samples.cpu().numpy())
 
     with open(output_file, 'w') as fout:
@@ -81,12 +77,11 @@ def main():
 
     # 3. Inizializzazione Modelli
     generator = Generator(num_emb=VOCAB_SIZE, emb_dim=GEN_EMB_DIM, hidden_dim=GEN_HIDDEN_DIM, 
-                          sequence_length=SEQ_LENGTH, num_conditions=NUM_CONDITIONS, 
+                          sequence_length=SEQ_LENGTH,
                           start_token=START_TOKEN).to(device)
                           
     discriminator = Discriminator(num_classes=2, vocab_size=VOCAB_SIZE, emb_dim=DIS_EMB_DIM, 
-                                  filter_sizes=DIS_FILTER_SIZES, num_filters=DIS_NUM_FILTERS, 
-                                  num_conditions=NUM_CONDITIONS,
+                                  filter_sizes=DIS_FILTER_SIZES, num_filters=DIS_NUM_FILTERS,
                                   dropout_prob=cfg['discriminator']['dropout_prob']).to(device)
 
     # Ottimizzatori PyTorch
@@ -105,15 +100,12 @@ def main():
         epoch_loss = 0
         
         for _ in range(gen_data_loader.num_batch):
-            # Ottieni batch dal loader e simula condizioni causali (poiché non le abbiamo salvate nel txt)
-            # In un progetto avanzato, salveresti l'ID del DBMS nel txt e lo caricheresti qui
             x_batch = torch.tensor(gen_data_loader.next_batch(), dtype=torch.long).to(device)
-            cond_batch = torch.randint(0, NUM_CONDITIONS, (BATCH_SIZE,)).to(device)
 
             gen_optimizer.zero_grad()
             
             # Forward pass: prevede i prossimi token
-            predictions = generator(x_batch, cond_batch)
+            predictions = generator(x_batch)
             
             # Loss Cross-Entropy
             loss = generator.pretrain_loss(predictions, x_batch)
@@ -135,7 +127,7 @@ def main():
     
     for d_step in range(cfg['discriminator']['pretrain_steps']):
         # Genera payload falsi e uniscili a quelli veri
-        generate_samples(generator, BATCH_SIZE, cfg['adversarial']['generated_samples'], NEGATIVE_FILE, NUM_CONDITIONS)
+        generate_samples(generator, BATCH_SIZE, cfg['adversarial']['generated_samples'], NEGATIVE_FILE)
         dis_data_loader.load_train_data(POSITIVE_FILE, NEGATIVE_FILE)
         
         for _ in range(cfg['discriminator']['inner_epochs']):
@@ -147,10 +139,9 @@ def main():
                 x_tensor = torch.tensor(x_batch, dtype=torch.long).to(device)
                 # y_batch nel dataloader originale restituiva one-hot [0,1], a noi serve l'indice di classe (0 o 1)
                 y_tensor = torch.tensor(np.argmax(y_batch, axis=1), dtype=torch.long).to(device)
-                cond_batch = torch.randint(0, NUM_CONDITIONS, (BATCH_SIZE,)).to(device)
 
                 dis_optimizer.zero_grad()
-                logits = discriminator(x_tensor, cond_batch)
+                logits = discriminator(x_tensor)
                 
                 loss = discriminator.compute_loss(logits, y_tensor)
                 loss.backward()
@@ -170,13 +161,11 @@ def main():
         
         # 1. Addestra Generatore per 1 step
         for _ in range(cfg['adversarial']['generator_steps']):
-            cond_batch = torch.randint(0, NUM_CONDITIONS, (BATCH_SIZE,)).to(device)
-            
             # Genera sequenze e log_probs
-            samples, log_probs = generator.sample(BATCH_SIZE, cond_batch)
+            samples, log_probs = generator.sample(BATCH_SIZE, device)
             
             # Calcola le Reward tramite Rollout MC Search e Discriminatore
-            rewards = rollout.get_reward(samples, ROLLOUT_NUM, discriminator, cond_batch)
+            rewards = rollout.get_reward(samples, ROLLOUT_NUM, discriminator)
             
             # Applica Policy Gradient (REINFORCE)
             gen_optimizer.zero_grad()
@@ -190,7 +179,7 @@ def main():
 
         # 2. Addestra Discriminatore
         for _ in range(cfg['adversarial']['discriminator_steps']):
-            generate_samples(generator, BATCH_SIZE, cfg['adversarial']['generated_samples'], NEGATIVE_FILE, NUM_CONDITIONS)
+            generate_samples(generator, BATCH_SIZE, cfg['adversarial']['generated_samples'], NEGATIVE_FILE)
             dis_data_loader.load_train_data(POSITIVE_FILE, NEGATIVE_FILE)
             
             for _ in range(cfg['discriminator']['inner_epochs']):
@@ -199,10 +188,9 @@ def main():
                     x_batch, y_batch = dis_data_loader.next_batch()
                     x_tensor = torch.tensor(x_batch, dtype=torch.long).to(device)
                     y_tensor = torch.tensor(np.argmax(y_batch, axis=1), dtype=torch.long).to(device)
-                    cond_batch = torch.randint(0, NUM_CONDITIONS, (BATCH_SIZE,)).to(device)
 
                     dis_optimizer.zero_grad()
-                    logits = discriminator(x_tensor, cond_batch)
+                    logits = discriminator(x_tensor)
                     d_loss = discriminator.compute_loss(logits, y_tensor)
                     d_loss.backward()
                     dis_optimizer.step()

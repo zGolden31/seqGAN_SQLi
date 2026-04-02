@@ -12,12 +12,8 @@ from models.generator import Generator
 # --- CONFIGURAZIONE (caricata da config.yaml) ---
 SEQ_LENGTH = cfg['training']['seq_length']
 START_TOKEN = cfg['training']['start_token']
-NUM_CONDITIONS = cfg['training']['num_conditions']
 GEN_EMB_DIM = cfg['generator']['emb_dim']
 GEN_HIDDEN_DIM = cfg['generator']['hidden_dim']
-
-# Mappa delle Condizioni (DBMS)
-DBMS_MAP = {int(k): v for k, v in cfg['dbms_map'].items()}
 
 def load_generator(vocab_size, model_path, device):
     """Inizializza il modello e carica i pesi salvati."""
@@ -25,8 +21,7 @@ def load_generator(vocab_size, model_path, device):
         num_emb=vocab_size, 
         emb_dim=GEN_EMB_DIM, 
         hidden_dim=GEN_HIDDEN_DIM, 
-        sequence_length=SEQ_LENGTH, 
-        num_conditions=NUM_CONDITIONS, 
+        sequence_length=SEQ_LENGTH,
         start_token=START_TOKEN
     ).to(device)
     
@@ -39,17 +34,14 @@ def load_generator(vocab_size, model_path, device):
         
     return generator
 
-def generate_payloads(num_payloads, dbms_id, generator, tokenizer, device):
+def generate_payloads(num_payloads, generator, tokenizer, device):
     """Genera e decodifica i payload sintetici."""
-    print(f"\nGenerazione di {num_payloads} payload sintetici per {DBMS_MAP.get(dbms_id, 'Unknown')}...")
-    
-    # Creiamo il tensore della condizione (tutti gli elementi avranno l'ID del DBMS scelto)
-    cond_batch = torch.full((num_payloads,), dbms_id, dtype=torch.long).to(device)
+    print(f"\nGenerazione di {num_payloads} payload sintetici...")
     
     # Disabilitiamo i gradienti per la generazione
     with torch.no_grad():
         # Generiamo le sequenze di ID
-        samples, _ = generator.sample(num_payloads, cond_batch)
+        samples, _ = generator.sample(num_payloads, device)
         
     # Convertiamo i tensori in liste di Python
     samples_list = samples.cpu().numpy().tolist()
@@ -82,12 +74,11 @@ def main():
     # 2. Caricamento del Generatore
     generator = load_generator(cfg['training']['vocab_size'], model_path, device)
     
-    # 3. Parametri di generazione utente
+    # 3. Parametri di generazione
     NUM_PAYLOADS = cfg['generation']['num_payloads']
-    SCELTA_DBMS = cfg['generation']['default_dbms']
     
     # 4. Generazione
-    payloads = generate_payloads(NUM_PAYLOADS, SCELTA_DBMS, generator, tokenizer, device)
+    payloads = generate_payloads(NUM_PAYLOADS, generator, tokenizer, device)
     
     # 5. Stampa e Salvataggio
     print("\n--- RISULTATI GENERATI ---")
