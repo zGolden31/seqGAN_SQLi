@@ -4,39 +4,40 @@ import numpy as np
 import random
 import os
 
+from config import cfg
 from utils.data_loader import Gen_Data_loader, Dis_dataloader
 from models.generator import Generator
 from models.discriminator import Discriminator
 from models.rollout import Rollout
 
 #########################################################################################
-# Hyper-parameters
+# Hyper-parameters (caricati da config.yaml)
 #########################################################################################
-SEED = 42
-BATCH_SIZE = 64
-SEQ_LENGTH = 50
-START_TOKEN = 2  # <SOS> in base al tuo SQLiTokenizer
-VOCAB_SIZE = 5000 # Deve combaciare col tokenizer
-NUM_CONDITIONS = 4 # Esempio: 0=MySQL, 1=PostgreSQL, 2=MSSQL, 3=Oracle
+SEED = cfg['seed']
+BATCH_SIZE = cfg['training']['batch_size']
+SEQ_LENGTH = cfg['training']['seq_length']
+START_TOKEN = cfg['training']['start_token']
+VOCAB_SIZE = cfg['training']['vocab_size']
+NUM_CONDITIONS = cfg['training']['num_conditions']
 
 # Generator Params
-GEN_EMB_DIM = 32
-GEN_HIDDEN_DIM = 32
-PRE_EPOCH_NUM = 120 # Quante epoche per il Pre-training MLE
+GEN_EMB_DIM = cfg['generator']['emb_dim']
+GEN_HIDDEN_DIM = cfg['generator']['hidden_dim']
+PRE_EPOCH_NUM = cfg['generator']['pretrain_epochs']
 
 # Discriminator Params
-DIS_EMB_DIM = 64
-DIS_FILTER_SIZES = [2, 3, 4, 5, 6, 7] # N-grams (bi-grams, tri-grams, ecc.)
-DIS_NUM_FILTERS = [100, 100, 100, 100, 100, 100]
+DIS_EMB_DIM = cfg['discriminator']['emb_dim']
+DIS_FILTER_SIZES = cfg['discriminator']['filter_sizes']
+DIS_NUM_FILTERS = cfg['discriminator']['num_filters']
 
 # Adversarial Training Params
-ADV_TOTAL_BATCH = 200
-ROLLOUT_NUM = 16
+ADV_TOTAL_BATCH = cfg['adversarial']['total_batches']
+ROLLOUT_NUM = cfg['adversarial']['rollout_num']
 
 # Files
-POSITIVE_FILE = 'data/processed/real_attack_data.txt'
-NEGATIVE_FILE = 'data/processed/generator_sample.txt'
-EVAL_FILE = 'data/processed/eval_file.txt'
+POSITIVE_FILE = cfg['paths']['positive_file']
+NEGATIVE_FILE = cfg['paths']['negative_file']
+EVAL_FILE = cfg['paths']['eval_file']
 
 # Device
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -85,11 +86,12 @@ def main():
                           
     discriminator = Discriminator(num_classes=2, vocab_size=VOCAB_SIZE, emb_dim=DIS_EMB_DIM, 
                                   filter_sizes=DIS_FILTER_SIZES, num_filters=DIS_NUM_FILTERS, 
-                                  num_conditions=NUM_CONDITIONS).to(device)
+                                  num_conditions=NUM_CONDITIONS,
+                                  dropout_prob=cfg['discriminator']['dropout_prob']).to(device)
 
     # Ottimizzatori PyTorch
-    gen_optimizer = optim.Adam(generator.parameters(), lr=0.01)
-    dis_optimizer = optim.Adam(discriminator.parameters(), lr=1e-4)
+    gen_optimizer = optim.Adam(generator.parameters(), lr=cfg['generator']['learning_rate'])
+    dis_optimizer = optim.Adam(discriminator.parameters(), lr=cfg['discriminator']['learning_rate'])
 
     # Assicuriamoci che la cartella esista
     os.makedirs('data/processed', exist_ok=True)
@@ -118,12 +120,12 @@ def main():
             loss.backward()
             
             # Gradient clipping (essenziale per LSTM)
-            torch.nn.utils.clip_grad_norm_(generator.parameters(), max_norm=5.0)
+            torch.nn.utils.clip_grad_norm_(generator.parameters(), max_norm=cfg['generator']['gradient_clip'])
             gen_optimizer.step()
             
             epoch_loss += loss.item()
 
-        if epoch % 10 == 0:
+        if epoch % cfg['training']['print_every'] == 0:
             print(f'Epoch Pre-Train Gen {epoch}/{PRE_EPOCH_NUM} - Loss (NLL): {epoch_loss/gen_data_loader.num_batch:.4f}')
 
     #########################################################################################
@@ -131,12 +133,12 @@ def main():
     #########################################################################################
     print('\n[FASE 2] Inizio Pre-Training del Discriminatore...')
     
-    for d_step in range(50): # 50 cicli per indurire il discriminatore
+    for d_step in range(cfg['discriminator']['pretrain_steps']):
         # Genera payload falsi e uniscili a quelli veri
-        generate_samples(generator, BATCH_SIZE, 10000, NEGATIVE_FILE, NUM_CONDITIONS)
+        generate_samples(generator, BATCH_SIZE, cfg['adversarial']['generated_samples'], NEGATIVE_FILE, NUM_CONDITIONS)
         dis_data_loader.load_train_data(POSITIVE_FILE, NEGATIVE_FILE)
         
-        for _ in range(3): # 3 epoche per ogni ciclo
+        for _ in range(cfg['discriminator']['inner_epochs']):
             dis_data_loader.reset_pointer()
             for _ in range(dis_data_loader.num_batch):
                 x_batch, y_batch = dis_data_loader.next_batch()
@@ -154,20 +156,20 @@ def main():
                 loss.backward()
                 dis_optimizer.step()
                 
-        if d_step % 10 == 0:
-            print(f'Discriminator Pre-train Step {d_step}/50 - Loss: {loss.item():.4f}')
+        if d_step % cfg['training']['print_every'] == 0:
+            print(f'Discriminator Pre-train Step {d_step}/{cfg["discriminator"]["pretrain_steps"]} - Loss: {loss.item():.4f}')
 
 
     #########################################################################################
     # FASE 3: ADDESTRAMENTO AVVERSARIO (RL POLICY GRADIENT)
     #########################################################################################
-    rollout = Rollout(generator, update_rate=0.8)
+    rollout = Rollout(generator, update_rate=cfg['adversarial']['rollout_update_rate'])
 
     print('\n[FASE 3] Inizio Addestramento Avversario (SeqGAN)...')
     for adv_epoch in range(ADV_TOTAL_BATCH):
         
         # 1. Addestra Generatore per 1 step
-        for _ in range(1):
+        for _ in range(cfg['adversarial']['generator_steps']):
             cond_batch = torch.randint(0, NUM_CONDITIONS, (BATCH_SIZE,)).to(device)
             
             # Genera sequenze e log_probs
@@ -180,18 +182,18 @@ def main():
             gen_optimizer.zero_grad()
             g_loss = generator.adversarial_loss(log_probs, rewards)
             g_loss.backward()
-            torch.nn.utils.clip_grad_norm_(generator.parameters(), max_norm=5.0)
+            torch.nn.utils.clip_grad_norm_(generator.parameters(), max_norm=cfg['generator']['gradient_clip'])
             gen_optimizer.step()
 
         # Aggiorna la rete copia del Rollout (Soft Update)
         rollout.update_params(generator)
 
         # 2. Addestra Discriminatore
-        for _ in range(5):
-            generate_samples(generator, BATCH_SIZE, 10000, NEGATIVE_FILE, NUM_CONDITIONS)
+        for _ in range(cfg['adversarial']['discriminator_steps']):
+            generate_samples(generator, BATCH_SIZE, cfg['adversarial']['generated_samples'], NEGATIVE_FILE, NUM_CONDITIONS)
             dis_data_loader.load_train_data(POSITIVE_FILE, NEGATIVE_FILE)
             
-            for _ in range(3):
+            for _ in range(cfg['discriminator']['inner_epochs']):
                 dis_data_loader.reset_pointer()
                 for _ in range(dis_data_loader.num_batch):
                     x_batch, y_batch = dis_data_loader.next_batch()
@@ -205,14 +207,14 @@ def main():
                     d_loss.backward()
                     dis_optimizer.step()
 
-        if adv_epoch % 10 == 0:
+        if adv_epoch % cfg['training']['print_every'] == 0:
             print(f'Adversarial Epoch {adv_epoch}/{ADV_TOTAL_BATCH} - G_Loss: {g_loss.item():.4f} | D_Loss: {d_loss.item():.4f}')
 
     print("\n--- ADDESTRAMENTO COMPLETATO! ---")
     
     # Salva i pesi finali del modello
-    torch.save(generator.state_dict(), 'models/generator_final.pth')
-    print("Modello salvato in 'models/generator_final.pth'")
+    torch.save(generator.state_dict(), cfg['paths']['model_output'])
+    print(f"Modello salvato in '{cfg['paths']['model_output']}'")
 
 if __name__ == '__main__':
     main()

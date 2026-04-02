@@ -1,5 +1,8 @@
 import pandas as pd
 import os
+import sys
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from config import cfg
 
 def crea_dataset_toy(percorso_attacchi, percorso_kaggle, cartella_output="."):
     """
@@ -55,9 +58,9 @@ def crea_dataset_toy(percorso_attacchi, percorso_kaggle, cartella_output="."):
     df_toy = pd.concat([df_attacchi, df_normale]).sample(frac=1, random_state=42).reset_index(drop=True)
 
     # 4. SALVARE I FILE
-    percorso_toy = os.path.join(cartella_output, "data/generated/dataset_toy.csv")
-    percorso_toy_attack = os.path.join(cartella_output, "data/generated/dataset_toy_attack.csv")
-    percorso_toy_normal = os.path.join(cartella_output, "data/generated/dataset_toy_normal.csv")
+    percorso_toy = os.path.join(cartella_output, cfg['paths']['generated_dataset'])
+    percorso_toy_attack = os.path.join(cartella_output, cfg['paths']['generated_attacks'])
+    percorso_toy_normal = os.path.join(cartella_output, cfg['paths']['generated_normal'])
 
     df_toy.to_csv(percorso_toy, index=False)
     df_attacchi.to_csv(percorso_toy_attack, index=False)
@@ -71,7 +74,7 @@ def crea_dataset_toy(percorso_attacchi, percorso_kaggle, cartella_output="."):
 # Esecuzione dello script
 if __name__ == "__main__":
     # Aggiorna questi percorsi se i file si trovano in una directory diversa
-    FILE_ATTACCHI = r"data\raw\Generic-SQLi.txt"
-    FILE_KAGGLE = r"data\raw\Modified_SQL_Dataset.csv"
+    FILE_ATTACCHI = cfg['paths']['raw_attacks']
+    FILE_KAGGLE = cfg['paths']['raw_kaggle']
     
     crea_dataset_toy(FILE_ATTACCHI, FILE_KAGGLE)

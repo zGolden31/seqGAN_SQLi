@@ -5,22 +5,22 @@ import pandas as pd
 import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from utils.tokenizer import SQLiTokenizer
+from config import cfg
 
 def preprocess_pipeline():
     # 1. SETUP DEI PERCORSI
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    data_dir = os.path.join(base_dir, 'data')
-    processed_dir = os.path.join(data_dir, 'processed')
+    processed_dir = os.path.join(base_dir, 'data', 'processed')
     
     # Crea la cartella processed se non esiste
     os.makedirs(processed_dir, exist_ok=True)
 
-    file_attacchi_csv = os.path.join(data_dir, 'generated', 'dataset_toy.csv')
-    file_normali_csv = os.path.join(data_dir, 'generated', 'dataset_toy_normal.csv')
+    file_attacchi_csv = os.path.join(base_dir, cfg['paths']['generated_dataset'])
+    file_normali_csv = os.path.join(base_dir, cfg['paths']['generated_normal'])
     
-    out_attacchi_txt = os.path.join(processed_dir, 'real_attack_data.txt')
-    out_normali_txt = os.path.join(processed_dir, 'normal_data.txt')
-    out_vocab = os.path.join(data_dir, 'vocab.json')
+    out_attacchi_txt = os.path.join(base_dir, cfg['paths']['processed_attacks'])
+    out_normali_txt = os.path.join(base_dir, cfg['paths']['processed_normal'])
+    out_vocab = os.path.join(base_dir, cfg['paths']['vocab_file'])
 
     print("--- INIZIO PRE-PROCESSING ---")
 
@@ -39,8 +39,7 @@ def preprocess_pipeline():
     print(f"Caricati {len(attacchi)} attacchi e {len(normali)} query benigne.")
 
     # 3. INIZIALIZZAZIONE E ADDESTRAMENTO TOKENIZER
-    # Fissiamo la lunghezza a 50 (puoi aumentarla se i payload error-based sono molto lunghi)
-    tokenizer = SQLiTokenizer(max_seq_length=50, max_vocab_size=5000)
+    tokenizer = SQLiTokenizer(max_seq_length=cfg['training']['seq_length'], max_vocab_size=cfg['training']['vocab_size'])
     
     # Uniamo i testi per creare un vocabolario globale condiviso
     tutti_i_testi = attacchi + normali
