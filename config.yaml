@@ -1,35 +1,35 @@
 seed: 42
 
 training:
-  batch_size: 64
-  seq_length: 50
+  batch_size: 64       # Dimensione del batch per il training
+  seq_length: 30       # Lunghezza massima dei payload (in token)
   start_token: 2       # ID del token <SOS> nel SQLiTokenizer
   vocab_size: 5000     # Deve combaciare col tokenizer
   num_conditions: 4    # 0=MySQL, 1=PostgreSQL, 2=MSSQL, 3=Oracle
   print_every: 10      # Frequenza di stampa delle metriche (in epoche/step)
 
 generator:
-  emb_dim: 32
-  hidden_dim: 32
-  pretrain_epochs: 120    # Epoche per il Pre-training MLE
-  learning_rate: 0.01
-  gradient_clip: 5.0
+  emb_dim: 32 # Dimensione dell'embedding 
+  hidden_dim: 32 # Dimensione dello hidden state del LSTM
+  pretrain_epochs: 80   # Epoche per il Pre-training MLE
+  learning_rate: 0.001 # Learning rate per il pre-training del generatore
+  gradient_clip: 5.0 # Valore di clipping per i gradienti (per stabilizzare l'addestramento)
 
 discriminator:
-  emb_dim: 64
+  emb_dim: 64 # Dimensione dell'embedding per il discriminatore (più grande per una maggiore capacità)
   filter_sizes: [2, 3, 4, 5, 6, 7]          # N-grams (bi-grams, tri-grams, ecc.)
   num_filters: [100, 100, 100, 100, 100, 100]
   dropout_prob: 0.7  # Valore originale del paper SeqGAN (alta regolarizzazione)
-  learning_rate: 0.0001
+  learning_rate: 0.0001 # Learning rate per il discriminatore 
   pretrain_steps: 50      # Cicli di pre-training del discriminatore
   inner_epochs: 3         # Epoche interne per ogni ciclo
 
 adversarial:
-  total_batches: 200
-  rollout_num: 16
-  rollout_update_rate: 0.8
+  total_batches: 50  # Numero totale di batch per l'addestramento avversario (cicli del generatore)
+  rollout_num: 1 # Numero di rollout per stima della ricompensa (può essere aumentato per una stima più accurata, ma rallenta l'addestramento)
+  rollout_update_rate: 0.8 # Tasso di aggiornamento del rollout (come nel paper SeqGAN)
   generator_steps: 1      # Step di aggiornamento del generatore per epoca avversaria
-  discriminator_steps: 5  # Step di aggiornamento del discriminatore per epoca avversaria
+  discriminator_steps: 1  # Step di aggiornamento del discriminatore per epoca avversaria
   generated_samples: 10000  # Campioni generati per ogni ciclo del discriminatore
 
 paths:
