@@ -11,13 +11,12 @@ def preprocess_pipeline():
     # 1. SETUP DEI PERCORSI
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     processed_dir = os.path.join(base_dir, 'data', 'processed')
-    
+
     # Crea la cartella processed se non esiste
     os.makedirs(processed_dir, exist_ok=True)
 
-    file_attacchi_csv = os.path.join(base_dir, cfg['paths']['generated_dataset'])
-    file_normali_csv = os.path.join(base_dir, cfg['paths']['generated_normal'])
-    
+    raw_csv = os.path.join(base_dir, cfg['paths']['raw_kaggle'])
+
     out_attacchi_txt = os.path.join(base_dir, cfg['paths']['processed_attacks'])
     out_normali_txt = os.path.join(base_dir, cfg['paths']['processed_normal'])
     out_vocab = os.path.join(base_dir, cfg['paths']['vocab_file'])
@@ -26,21 +25,21 @@ def preprocess_pipeline():
 
     # 2. CARICAMENTO DATI
     try:
-        df_attacchi = pd.read_csv(file_attacchi_csv)
-        df_normali = pd.read_csv(file_normali_csv)
+        df = pd.read_csv(raw_csv)
     except FileNotFoundError as e:
-        print(f"Errore: File non trovato. Assicurati di aver generato i dataset toy. Dettagli: {e}")
+        print(f"Errore: File non trovato. Assicurati che {raw_csv} esista. Dettagli: {e}")
         return
 
-    # Pulisci eventuali righe vuote (NaN)
-    attacchi = df_attacchi['Query'].dropna().astype(str).tolist()
-    normali = df_normali['Query'].dropna().astype(str).tolist()
+    # Pulisci eventuali righe vuote (NaN) e separa per label
+    df = df[['Query', 'Label']].dropna()
+    attacchi = df[df['Label'] == 1]['Query'].astype(str).tolist()
+    normali = df[df['Label'] == 0]['Query'].astype(str).tolist()
 
     print(f"Caricati {len(attacchi)} attacchi e {len(normali)} query benigne.")
 
     # 3. INIZIALIZZAZIONE E ADDESTRAMENTO TOKENIZER
     tokenizer = SQLiTokenizer(max_seq_length=cfg['training']['seq_length'], max_vocab_size=cfg['training']['vocab_size'])
-    
+
     # Uniamo i testi per creare un vocabolario globale condiviso
     tutti_i_testi = attacchi + normali
     print("Costruzione del vocabolario in corso (potrebbe richiedere qualche secondo)...")

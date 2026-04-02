@@ -29,7 +29,7 @@ class Rollout:
             
         self.rollout_gen.load_state_dict(rollout_dict)
 
-    def sample_from_prefix(self, prefix, total_length, condition):
+    def sample_from_prefix(self, prefix, total_length):
         """
         Equivalente ai cicli _g_recurrence_1 (che legge il prefisso) e 
         _g_recurrence_2 (che genera il resto) del codice TF.
@@ -41,7 +41,6 @@ class Rollout:
         # Inizializza memoria della LSTM
         h_t = torch.zeros(batch_size, self.rollout_gen.hidden_dim).to(device)
         c_t = torch.zeros(batch_size, self.rollout_gen.hidden_dim).to(device)
-        cond_emb = self.rollout_gen.cond_embedding(condition)
 
         # 1. Carica la memoria della rete leggendo il prefisso noto
         start_tokens = torch.full((batch_size, 1), self.rollout_gen.start_token, dtype=torch.long).to(device)
@@ -50,8 +49,7 @@ class Rollout:
         # Passiamo tutto il prefisso nella LSTM senza generare nulla
         for i in range(t_prefix):
             word_emb = self.rollout_gen.word_embedding(gen_input[:, i])
-            lstm_input = torch.cat([word_emb, cond_emb], dim=-1)
-            h_t, c_t = self.rollout_gen.lstm_cell(lstm_input, (h_t, c_t))
+            h_t, c_t = self.rollout_gen.lstm_cell(word_emb, (h_t, c_t))
 
         # L'ultimo token elaborato è il punto di partenza per il rollout
         x_t = gen_input[:, -1]
@@ -60,9 +58,8 @@ class Rollout:
         # 2. Genera (Rollout) la parte mancante della frase
         for i in range(t_prefix, total_length):
             word_emb = self.rollout_gen.word_embedding(x_t)
-            lstm_input = torch.cat([word_emb, cond_emb], dim=-1)
 
-            h_t, c_t = self.rollout_gen.lstm_cell(lstm_input, (h_t, c_t))
+            h_t, c_t = self.rollout_gen.lstm_cell(word_emb, (h_t, c_t))
             logits = self.rollout_gen.linear(h_t)
 
             # Campiona il token successivo
@@ -81,12 +78,11 @@ class Rollout:
 
         return complete_seq
 
-    def get_reward(self, x, rollout_num, discriminator, condition):
+    def get_reward(self, x, rollout_num, discriminator):
         """
-        Equivalente a get_reward. 
+        Equivalente a get_reward.
         Calcola il voto del discriminatore per ogni singolo step della generazione.
         x: I payload generati [batch_size, seq_len]
-        condition: Il DBMS bersaglio [batch_size]
         """
         batch_size = x.size(0)
         seq_len = x.size(1)
@@ -103,10 +99,10 @@ class Rollout:
                     prefix = x[:, :t]
 
                     # Chiediamo al Rollout di simulare la fine della frase
-                    complete_seq = self.sample_from_prefix(prefix, seq_len, condition)
+                    complete_seq = self.sample_from_prefix(prefix, seq_len)
 
                     # Chiediamo al Discriminatore se la frase inventata ha senso
-                    logits = discriminator(complete_seq, condition)
+                    logits = discriminator(complete_seq)
                     
                     # Estraiamo la probabilità che il payload sia REALE (classe 1)
                     prob_real = F.softmax(logits, dim=1)[:, 1]
@@ -114,7 +110,7 @@ class Rollout:
                     rewards[:, t-1] += prob_real
 
                 # Per l'ultimo token (t = seq_len) non c'è nulla da simulare
-                logits = discriminator(x, condition)
+                logits = discriminator(x)
                 prob_real = F.softmax(logits, dim=1)[:, 1]
                 rewards[:, seq_len-1] += prob_real
 
