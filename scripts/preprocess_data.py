@@ -38,8 +38,7 @@ def preprocess_pipeline():
     print(f"Caricati {len(attacchi)} attacchi e {len(normali)} query benigne.")
 
     # 3. INIZIALIZZAZIONE E ADDESTRAMENTO TOKENIZER
-    tokenizer = SQLiTokenizer(max_seq_length=cfg['training']['seq_length'], max_vocab_size=cfg['training']['vocab_size'])
-
+    tokenizer = SQLiTokenizer(max_seq_length=cfg['training']['seq_length'])  # senza max_vocab_size
     # Uniamo i testi per creare un vocabolario globale condiviso
     tutti_i_testi = attacchi + normali
     print("Costruzione del vocabolario in corso (potrebbe richiedere qualche secondo)...")

@@ -4,7 +4,7 @@ training:
   batch_size: 64       # Dimensione del batch per il training
   seq_length: 30       # Lunghezza massima dei payload (in token)
   start_token: 2       # ID del token <SOS> nel SQLiTokenizer
-  vocab_size: 5000     # Deve combaciare col tokenizer
+  # vocab_size: 5000     # Deve combaciare col tokenizer
   print_every: 10      # Frequenza di stampa delle metriche (in epoche/step)
 
 generator:

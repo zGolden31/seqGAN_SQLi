@@ -9,6 +9,7 @@ from utils.data_loader import Gen_Data_loader, Dis_dataloader
 from models.generator import Generator
 from models.discriminator import Discriminator
 from models.rollout import Rollout
+from utils.tokenizer import SQLiTokenizer
 
 #########################################################################################
 # Hyper-parameters (caricati da config.yaml)
@@ -17,7 +18,9 @@ SEED = cfg['seed']
 BATCH_SIZE = cfg['training']['batch_size']
 SEQ_LENGTH = cfg['training']['seq_length']
 START_TOKEN = cfg['training']['start_token']
-VOCAB_SIZE = cfg['training']['vocab_size']
+
+tokenizer = SQLiTokenizer.load(cfg['paths']['vocab_file'])
+VOCAB_SIZE = len(tokenizer.vocab)
 
 # Generator Params
 GEN_EMB_DIM = cfg['generator']['emb_dim']
