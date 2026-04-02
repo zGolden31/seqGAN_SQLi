@@ -78,10 +78,9 @@ def main():
         return
         
     tokenizer = SQLiTokenizer.load(vocab_path)
-    vocab_size = len(tokenizer.vocab)
     
     # 2. Caricamento del Generatore
-    generator = load_generator(vocab_size, model_path, device)
+    generator = load_generator(cfg['training']['vocab_size'], model_path, device)
     
     # 3. Parametri di generazione utente
     NUM_PAYLOADS = cfg['generation']['num_payloads']

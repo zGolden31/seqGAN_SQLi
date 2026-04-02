@@ -18,7 +18,7 @@ generator:
 discriminator:
   emb_dim: 64 # Dimensione dell'embedding per il discriminatore (più grande per una maggiore capacità)
   filter_sizes: [2, 3, 4, 5, 6, 7]          # N-grams (bi-grams, tri-grams, ecc.)
-  num_filters: [100, 100, 100, 100, 100, 100]
+  num_filters: [100, 100, 100, 100, 100, 100] # Numero di filtri per ogni dimensione (aumentato per una maggiore capacità)
   dropout_prob: 0.7  # Valore originale del paper SeqGAN (alta regolarizzazione)
   learning_rate: 0.0001 # Learning rate per il discriminatore 
   pretrain_steps: 50      # Cicli di pre-training del discriminatore
