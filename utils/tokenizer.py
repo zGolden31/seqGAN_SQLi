@@ -3,8 +3,10 @@ from sqlparse.sql import TokenList
 import json
 
 class SQLiTokenizer:
-    def __init__(self, max_seq_length=50):
+    def __init__(self, max_seq_length=50, max_vocab_size=None):
         self.max_seq_length = max_seq_length
+        self.max_vocab_size = max_vocab_size 
+        
         # Token speciali
         self.vocab = {"<PAD>": 0, "<UNK>": 1, "<SOS>": 2, "<EOS>": 3}
         self.id_to_token = {v: k for k, v in self.vocab.items()}
@@ -25,9 +27,15 @@ class SQLiTokenizer:
         """Costruisce il vocabolario basandosi su una lista di payload."""
         for p in payloads:
             parsed = sqlparse.parse(p)
+            if not parsed:
+                continue
+                
             tokens = self._flatten_tokens(parsed[0].tokens)
             for t in tokens:
                 if t not in self.vocab:
+                    if self.max_vocab_size and len(self.vocab) >= self.max_vocab_size:
+                        continue 
+                        
                     new_id = len(self.vocab)
                     self.vocab[t] = new_id
                     self.id_to_token[new_id] = t
@@ -36,19 +44,26 @@ class SQLiTokenizer:
     def encode(self, payload):
         """Converte una stringa in una lista di numeri (IDs)."""
         parsed = sqlparse.parse(payload)
-        tokens = self._flatten_tokens(parsed[0].tokens)
         
-        # Aggiungiamo Start e End of Sentence
+        # Gestione payload vuoto
+        if not parsed:
+            tokens = []
+        else:
+            tokens = self._flatten_tokens(parsed[0].tokens)
+        
+        # Lasciamo 2 spazi liberi per <SOS> ed <EOS>
+        max_tokens_allowed = self.max_seq_length - 2
+        tokens = tokens[:max_tokens_allowed]
+        
+        # Costruiamo la sequenza garantendo <SOS> e <EOS>
         encoded = [self.vocab["<SOS>"]]
         for t in tokens:
             encoded.append(self.vocab.get(t, self.vocab["<UNK>"]))
         encoded.append(self.vocab["<EOS>"])
         
-        # Padding o Troncamento
+        # Padding per raggiungere la lunghezza massima
         if len(encoded) < self.max_seq_length:
             encoded += [self.vocab["<PAD>"]] * (self.max_seq_length - len(encoded))
-        else:
-            encoded = encoded[:self.max_seq_length]
             
         return encoded
 
@@ -69,20 +84,18 @@ class SQLiTokenizer:
     @classmethod
     def load(cls, path):
         """Carica il tokenizer da un file JSON salvato."""
-        import json # Assicurati che sia importato in cima al file
         with open(path, "r") as f:
             data = json.load(f)
             
         # Crea una nuova istanza usando i parametri salvati
-        # Uso .get() per max_vocab_size nel caso in cui non fosse definito nei vecchi salvataggi
-        tokenizer = cls(max_seq_length=data["max_seq_length"])
-        if "max_vocab_size" in data:
-            tokenizer.max_vocab_size = data["max_vocab_size"]
+        tokenizer = cls(max_seq_length=data.get("max_seq_length", 50))
+        tokenizer.max_vocab_size = data.get("max_vocab_size", None)
             
         # Ripristina i dizionari
-        tokenizer.vocab = data["vocab"]
+        tokenizer.vocab = data.get("vocab", {})
+        # JSON salva sempre le chiavi come stringhe, ma qui v ha valori interi (gli ID)
+        # quindi la ricostruzione dizionario inverso funziona perfettamente.
         tokenizer.id_to_token = {v: k for k, v in tokenizer.vocab.items()}
         
         print(f"Tokenizer caricato da {path} (Vocab size: {len(tokenizer.vocab)})")
         return tokenizer
-
