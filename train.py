@@ -40,9 +40,25 @@ ROLLOUT_NUM = cfg['adversarial']['rollout_num']
 POSITIVE_FILE = cfg['paths']['positive_file']
 NEGATIVE_FILE = cfg['paths']['negative_file']
 EVAL_FILE = cfg['paths']['eval_file']
+CHECKPOINT_DIR = cfg['paths']['checkpoint_dir']
+
+# Training config
+checkpoint_every = cfg['training']['checkpoint_every']
 
 # Device
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+def save_checkpoint(generator, discriminator, gen_optimizer, dis_optimizer, epoch, phase, checkpoint_dir):
+    path = f"{checkpoint_dir}/checkpoint_{phase}_epoch_{epoch}.pt"
+    torch.save({
+        'generator_state_dict': generator.state_dict(),
+        'discriminator_state_dict': discriminator.state_dict(),
+        'gen_optimizer_state_dict': gen_optimizer.state_dict(),
+        'dis_optimizer_state_dict': dis_optimizer.state_dict(),
+        'epoch': epoch,
+        'phase': phase,
+    }, path)
+    print(f"💾 Checkpoint salvato: {path}")
 
 def generate_samples(model, batch_size, generated_num, output_file):
     """
@@ -93,6 +109,7 @@ def main():
 
     # Assicuriamoci che la cartella esista
     os.makedirs('data/processed', exist_ok=True)
+    os.makedirs(CHECKPOINT_DIR, exist_ok=True)
 
     #########################################################################################
     # FASE 1: PRE-TRAINING DEL GENERATORE (MLE)
@@ -123,6 +140,9 @@ def main():
         if epoch % cfg['training']['print_every'] == 0:
             print(f'Epoch Pre-Train Gen {epoch}/{PRE_EPOCH_NUM} - Loss (NLL): {epoch_loss/gen_data_loader.num_batch:.4f}')
 
+        if epoch % checkpoint_every == 0 and epoch > 0:
+            save_checkpoint(generator, discriminator, gen_optimizer, dis_optimizer, epoch, "pretrain_gen", CHECKPOINT_DIR)
+
     #########################################################################################
     # FASE 2: PRE-TRAINING DEL DISCRIMINATORE
     #########################################################################################
@@ -152,6 +172,9 @@ def main():
                 
         if d_step % cfg['training']['print_every'] == 0:
             print(f'Discriminator Pre-train Step {d_step}/{cfg["discriminator"]["pretrain_steps"]} - Loss: {loss.item():.4f}')
+
+        if d_step % checkpoint_every == 0 and d_step > 0:
+            save_checkpoint(generator, discriminator, gen_optimizer, dis_optimizer, d_step, "pretrain_dis", CHECKPOINT_DIR)
 
 
     #########################################################################################
@@ -200,6 +223,9 @@ def main():
 
         if adv_epoch % cfg['training']['print_every'] == 0:
             print(f'Adversarial Epoch {adv_epoch}/{ADV_TOTAL_BATCH} - G_Loss: {g_loss.item():.4f} | D_Loss: {d_loss.item():.4f}')
+
+        if adv_epoch % checkpoint_every == 0 and adv_epoch > 0:
+            save_checkpoint(generator, discriminator, gen_optimizer, dis_optimizer, adv_epoch, "adversarial", CHECKPOINT_DIR)
 
     print("\n--- ADDESTRAMENTO COMPLETATO! ---")
     

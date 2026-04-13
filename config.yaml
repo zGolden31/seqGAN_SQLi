@@ -6,6 +6,7 @@ training:
   start_token: 2       # ID del token <SOS> nel SQLiTokenizer
   # vocab_size: 5000     # Deve combaciare col tokenizer
   print_every: 10      # Frequenza di stampa delle metriche (in epoche/step)
+  checkpoint_every: 10 # Frequenza di salvataggio dei checkpoint (in epoche/step)
 
 generator:
   emb_dim: 64 # Dimensione dell'embedding 
@@ -40,6 +41,8 @@ paths:
   vocab_file: data/vocab.json
   # Modello salvato
   model_output: models/generator_final.pth
+  # Checkpoint
+  checkpoint_dir: checkpoints
   # Output generazione
   synthetic_output: data/processed/synthetic_payloads.txt
   # Dati grezzi (raw)
