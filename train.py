@@ -91,8 +91,9 @@ def main():
     gen_optimizer = optim.Adam(generator.parameters(), lr=cfg['generator']['learning_rate'])
     dis_optimizer = optim.Adam(discriminator.parameters(), lr=cfg['discriminator']['learning_rate'])
 
-    # Assicuriamoci che la cartella esista
+    # Assicuriamoci che le cartelle esistano
     os.makedirs('data/processed', exist_ok=True)
+    os.makedirs('checkpoints', exist_ok=True) # <-- NUOVO: Cartella per i checkpoint
 
     #########################################################################################
     # FASE 1: PRE-TRAINING DEL GENERATORE (MLE)
@@ -198,14 +199,32 @@ def main():
                     d_loss.backward()
                     dis_optimizer.step()
 
+        # Print delle metriche
         if adv_epoch % cfg['training']['print_every'] == 0:
             print(f'Adversarial Epoch {adv_epoch}/{ADV_TOTAL_BATCH} - G_Loss: {g_loss.item():.4f} | D_Loss: {d_loss.item():.4f}')
 
+        # -------------------------------------------------------------------------
+        # NUOVO: LOGICA DI CHECKPOINTING OGNI 10 EPOCHE
+        # -------------------------------------------------------------------------
+        if (adv_epoch + 1) % 10 == 0:
+            checkpoint_path = f"checkpoints/seqgan_checkpoint_epoch_{adv_epoch+1}.pt"
+            torch.save({
+                'epoch': adv_epoch + 1,
+                'generator_state_dict': generator.state_dict(),
+                'discriminator_state_dict': discriminator.state_dict(),
+                'gen_optimizer_state_dict': gen_optimizer.state_dict(),
+                'dis_optimizer_state_dict': dis_optimizer.state_dict(),
+                'g_loss': g_loss.item(),
+                'd_loss': d_loss.item()
+            }, checkpoint_path)
+            print(f'--> [Checkpoint] Salvato in: {checkpoint_path}')
+        # -------------------------------------------------------------------------
+
     print("\n--- ADDESTRAMENTO COMPLETATO! ---")
     
-    # Salva i pesi finali del modello
+    # Salva i pesi finali del modello (solo il generatore per l'uso finale)
     torch.save(generator.state_dict(), cfg['paths']['model_output'])
-    print(f"Modello salvato in '{cfg['paths']['model_output']}'")
+    print(f"Modello finale salvato in '{cfg['paths']['model_output']}'")
 
 if __name__ == '__main__':
     main()

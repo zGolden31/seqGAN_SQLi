@@ -4,7 +4,6 @@ import torch.nn.functional as F
 
 class Highway(nn.Module):
     """
-    Livello Highway (http://arxiv.org/abs/1505.00387).
     Permette alle reti profonde di far fluire l'informazione non modificata,
     mitigando il problema della scomparsa del gradiente.
     """

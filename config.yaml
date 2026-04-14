@@ -2,30 +2,30 @@ seed: 42
 
 training:
   batch_size: 64       # Dimensione del batch per il training
-  seq_length: 30       # Lunghezza massima dei payload (in token)
+  seq_length: 50      # Lunghezza massima dei payload (in token)
   start_token: 2       # ID del token <SOS> nel SQLiTokenizer
   # vocab_size: 5000     # Deve combaciare col tokenizer
   print_every: 10      # Frequenza di stampa delle metriche (in epoche/step)
 
 generator:
-  emb_dim: 64 # Dimensione dell'embedding 
-  hidden_dim: 64 # Dimensione dello hidden state del LSTM
-  pretrain_epochs: 120   # Epoche per il Pre-training MLE
+  emb_dim: 128 # Dimensione dell'embedding 
+  hidden_dim: 256 # Dimensione dello hidden state del LSTM
+  pretrain_epochs: 150   # Epoche per il Pre-training MLE
   learning_rate: 0.001 # Learning rate per il pre-training del generatore
   gradient_clip: 5.0 # Valore di clipping per i gradienti (per stabilizzare l'addestramento)
 
 discriminator:
-  emb_dim: 64 # Dimensione dell'embedding per il discriminatore (più grande per una maggiore capacità)
+  emb_dim: 128 # Dimensione dell'embedding per il discriminatore (più grande per una maggiore capacità)
   filter_sizes: [2, 3, 4, 5, 6, 7]          # N-grams (bi-grams, tri-grams, ecc.)
   num_filters: [128, 128, 128, 128, 128, 128] # Numero di filtri per ogni dimensione (aumentato per una maggiore capacità)
-  dropout_prob: 0.7  # Valore originale del paper SeqGAN (alta regolarizzazione)
+  dropout_prob: 0.5  # Valore originale del paper SeqGAN (alta regolarizzazione)
   learning_rate: 0.0001 # Learning rate per il discriminatore 
   pretrain_steps: 50      # Cicli di pre-training del discriminatore
-  inner_epochs: 3         # Epoche interne per ogni ciclo
+  inner_epochs: 2     # Epoche interne per ogni ciclo
 
 adversarial:
-  total_batches: 100  # Numero totale di batch per l'addestramento avversario (cicli del generatore)
-  rollout_num: 4 # Numero di rollout per stima della ricompensa (può essere aumentato per una stima più accurata, ma rallenta l'addestramento)
+  total_batches: 250  # Numero totale di batch per l'addestramento avversario (cicli del generatore)
+  rollout_num: 16 # Numero di rollout per stima della ricompensa (può essere aumentato per una stima più accurata, ma rallenta l'addestramento)
   rollout_update_rate: 0.8 # Tasso di aggiornamento del rollout (come nel paper SeqGAN)
   generator_steps: 1      # Step di aggiornamento del generatore per epoca avversaria
   discriminator_steps: 3  # Step di aggiornamento del discriminatore per epoca avversaria
@@ -54,4 +54,4 @@ paths:
   processed_normal: data/processed/normal_data.txt
 
 generation:
-  num_payloads: 20   # Numero di payload da generare per test
+  num_payloads: 50   # Numero di payload da generare per test

@@ -1,5 +1,5 @@
 {
-  "max_seq_length": 30,
+  "max_seq_length": 50,
   "max_vocab_size": null,
   "vocab": {
     "<PAD>": 0,
